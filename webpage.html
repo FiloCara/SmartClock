@@ -49,7 +49,7 @@
             // Set the size of the color picker
             width: 320,
             // Set the initial color to pure red
-            color: "#ffffff",
+            color: {r: 255, g: 0, b: 0},
             borderWidth: 1,
             borderColor: "#fff",
         });
@@ -71,12 +71,8 @@
 
         }
 
-        function colorChangeCallback(color) {
-            console.log(color.rgb);
-        }
-
         // Start listening to the color change event
-        colorPicker.on("color:change", colorChangeCallback);
+        colorPicker.on("color:change", updateColor);
     </script>
     
 </body>
