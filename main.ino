@@ -31,24 +31,44 @@ ESP8266WebServer server(80);
 String mode = "clock"; 
 
 // Initialize r, g, b variables
-uint8_t r = 255;
-uint8_t g = 255;
-uint8_t b = 255;
+int r = 255;
+int g = 255;
+int b = 255;
 
-// Function prorotypes
+// Initialize LED object TODO
+
+// Initalize grid led matrix with index position --> It simplify the development
+int matrix[10][11];
+matrix[0] = {115, 114,113,112,111,110,109,108,107,106,105};
+matrix[1] = {94, 95, 96, 97, 98, 99,100,101,102,103,104};
+matrix[2] = {93, 92, 91, 90, 89, 88, 87, 86, 85, 84, 83};
+matrix[3] = {72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82};
+matrix[4] = {71, 70, 69, 68, 67, 66, 65, 64, 63, 62, 61};
+matrix[5] = {50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60};
+matrix[6] = {49, 48, 47, 46, 45, 44, 43, 42, 41, 40, 39};
+matrix[7] = {28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38};
+matrix[8] = {27, 26, 25, 24, 23, 22, 21, 20, 19, 18, 17};
+matrix[9] = { 6,  7,  8,  9, 10, 11, 12, 13, 14, 15, 16};
+
+// %%%%%%Function prorotypes%%%%%%
+// Server
 void handleColor();
 void handleOnConnect();
 void handleClockMode();
 void handleTimerMode();
 void handleWavesMode();
 void handleNotFound();
-
+// Clock
 
 uint8_t LED1pin = D7;
 bool LED1status = LOW;
 
 uint8_t LED2pin = D6;
 bool LED2status = LOW;
+
+// Ininitialize previous_h and previous_m to track if hour has changed
+int previous_h;
+int previous_m;
 
 void setup() {
     
@@ -59,6 +79,11 @@ void setup() {
     WiFi.softAP(ssid, password);
     WiFi.softAPConfig(local_ip, gateway, subnet);
     delay(100);
+
+    //Start mDNS
+    if (MDNS.begin("smartclock")) {  
+      Serial.println(“MDNS started”);
+    }
 
     server.on("/updateColor", HTTP_POST, handleColor);
   
@@ -79,10 +104,16 @@ void setup() {
     // GMT -1 = -3600
     // GMT 0 = 0
     timeClient.setTimeOffset(-3600 * 4);
+
+    // Get current time
+    timeClient.update();
+    previous_h = timeClient.getHours();
+    previous_m = timeClient.getMinutes();
 }
 
 void loop() {
-    server.handleClient();
+  
+  server.handleClient();
   
   if (mode == "clock") {
     timeClient.update(); 
@@ -100,34 +131,19 @@ void loop() {
     Serial.println(g);
     Serial.println(b);
 
-    delay(1000);
+    delay(0);
 
   } 
 
   else if (mode == "timer") {
-    delay(1000);
+    delay(0);
   }
 
   else if (mode = "waves") {
-    delay(1000);    
+    delay(0);    
   }
-//   if(LED1status)
-//   {digitalWrite(LED1pin, HIGH);}
-//   else
-//   {digitalWrite(LED1pin, LOW);}
-  
-//   if(LED2status)
-//   {digitalWrite(LED2pin, HIGH);}
-//   else
-//   {digitalWrite(LED2pin, LOW);}
 }
 
-// void handle_OnConnect() {
-//   LED1status = LOW;
-//   LED2status = LOW;
-//   Serial.println("GPIO7 Status: OFF | GPIO6 Status: OFF");
-//   server.send(200, "text/html", SendHTML(LED1status,LED2status)); 
-// }
 
 void handleOnConnect() {
   server.send(200, "text/html", HTML(r, g, b, mode)); 
@@ -148,18 +164,6 @@ void handleWavesMode() {
     server.send(200, "text/html", HTML(r, g, b, mode));
 }
 
-// void handle_led1on() {
-//   LED1status = HIGH;
-//   Serial.println("GPIO7 Status: ON");
-//   server.send(200, "text/html", SendHTML(true,LED2status)); 
-// }
-
-// void handle_led1off() {
-//   LED1status = LOW;
-//   Serial.println("GPIO7 Status: OFF");
-//   server.send(200, "text/html", SendHTML(false,LED2status)); 
-// }
-
 void handleNotFound(){
   server.send(404, "text/plain", "Not found");
 }
@@ -173,41 +177,84 @@ void handleColor() {
     }
     // Update color here
     else {
-      r = server.arg("r");
-      g = server.arg("g");
-      b = server.arg("b");
+      r = server.arg("r").toInt();
+      g = server.arg("g").toInt();
+      b = server.arg("b").toInt();
     }
 }
 
-// String SendHTML(uint8_t led1stat,uint8_t led2stat){
-//   String ptr = "<!DOCTYPE html> <html>\n";
-//   ptr +="<head><meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0, user-scalable=no\">\n";
-//   ptr +="<title>LED Control</title>\n";
-//   ptr +="<style>html { font-family: Helvetica; display: inline-block; margin: 0px auto; text-align: center;}\n";
-//   ptr +="body{margin-top: 50px;} h1 {color: #444444;margin: 50px auto 30px;} h3 {color: #444444;margin-bottom: 50px;}\n";
-//   ptr +=".button {display: block;width: 80px;background-color: #1abc9c;border: none;color: white;padding: 13px 30px;text-decoration: none;font-size: 25px;margin: 0px auto 35px;cursor: pointer;border-radius: 4px;}\n";
-//   ptr +=".button-on {background-color: #1abc9c;}\n";
-//   ptr +=".button-on:active {background-color: #16a085;}\n";
-//   ptr +=".button-off {background-color: #34495e;}\n";
-//   ptr +=".button-off:active {background-color: #2c3e50;}\n";
-//   ptr +="p {font-size: 14px;color: #888;margin-bottom: 10px;}\n";
-//   ptr +="</style>\n";
-//   ptr +="</head>\n";
-//   ptr +="<body>\n";
-//   ptr +="<h1>ESP8266 Web Server</h1>\n";
-//   ptr +="<h3>Using Access Point(AP) Mode</h3>\n";
-  
-//    if(led1stat)
-//   {ptr +="<p>LED1 Status: ON</p><a class=\"button button-off\" href=\"/led1off\">OFF</a>\n";}
-//   else
-//   {ptr +="<p>LED1 Status: OFF</p><a class=\"button button-on\" href=\"/led1on\">ON</a>\n";}
+String HTML(uint8_t r, uint8_t g, uint8_t b, String mode) {
+    
+    String ptr += "<!DOCTYPE html>";
+        ptr += "<!DOCTYPE html>";
+        ptr += "<html lang=\"en\">";
+        ptr += "<head>";
+        ptr += "<meta charset=\"UTF-8\">";
+        ptr += "<meta http-equiv=\"X-UA-Compatible\" content=\"IE=edge\">";
+        ptr += "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">";
+        ptr += "<!-- Bootstrap CSS -->";
+        ptr += "<link href=\"https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css\" rel=\"stylesheet\" integrity=\"sha384-1BmE4kWBq78iYhFldvKuhfTAU6auU8tT94WrHftjDbrCEXSU1oBoqyl2QvZ6jIW3\" crossorigin=\"anonymous\">";
+        ptr += "<!-- JavaScript Bundle with Popper -->";
+        ptr += "<script src=\"https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js\" integrity=\"sha384-ka7Sk0Gln4gmtz2MlQnikT1wXgYsOg+OMhuP+IlRH9sENBO0LRn5q+8nbTov4+1p\" crossorigin=\"anonymous\"></script>";
+        ptr += "<!-- Color picker -->";
+        ptr += "<script src=\"https://cdn.jsdelivr.net/npm/@jaames/iro\"></script>";
+        ptr += "<title>SmartClock</title>";
+        ptr += "</head>";
+        ptr += "<body class=\"bg-secondary text-white\">";
+        ptr += "<div class=\"container\">";
+        ptr += "<div class=\"row justify-content-center\">";
+        ptr += "<div class=\"col-sm\"></div>";
+        ptr += "<div class=\"col-sm\">";
+        ptr += "<h1 class=\"text-center\">Smart Clock</h1>";
+        ptr += "<br>";
+        ptr += "<div class=\"wheel mx-auto\" id=\"colorWheelDemo\"></div>";
+        ptr += "</div>";
+        ptr += "<div class=\"col-sm\"></div>";
+        ptr += "</div>";
+        ptr += "<br>";
+        ptr += "<div class=\"row justify-content-center\">";
+        ptr += "<div class=\"col-sm\"></div>";
+        ptr += "<div class=\"col-sm text-center\">";
+        ptr += "<div class=\"dropdown\">";
+        ptr += "<button class=\"btn btn-primary dropdown-toggle\" type=\"button\" id=\"modeSelection\" data-bs-toggle=\"dropdown\" aria-expanded=\"false\">";
+        ptr += "Select the mode";
+        ptr += "</button>";
+        ptr += "<ul class=\"dropdown-menu\" aria-labelledby=\"modeSelection\">";
+        ptr += "<li><a class=\"dropdown-item\" href=\"/clock\">Clock</a></li>";
+        ptr += "<li><a class=\"dropdown-item\" href=\"/timer\">Timer</a></li>";
+        ptr += "<li><a class=\"dropdown-item\" href=\"/waves\">Waves</a></li>";
+        ptr += "</ul>";
+        ptr += "</div>";
+        ptr += "</div>";
+        ptr += "<div class=\"col-sm\"></div>";
+        ptr += "</div>";
+        ptr += "</div>";
+        ptr += "<script>";
+        ptr += "var colorPicker = new iro.ColorPicker(\"#colorWheelDemo\", {";
+        ptr += "// Set the size of the color picker";
+        ptr += "width: 320,";
+        ptr += "// Set the initial color to pure red";
+        ptr += "color: {r: " + r + ", g: " + g + ", b:" + b + "},";
+        ptr += "borderWidth: 1,";
+        ptr += "borderColor: \"#fff\",";
+        ptr += "});";
+        ptr += "function updateColor(color) {";
+        ptr += "let xhr = new XMLHttpRequest();";
+        ptr += "xhr.open(\"POST\", \"/updateColor\");";
+        ptr += "xhr.setRequestHeader(\"Accept\", \"application/json\");";
+        ptr += "xhr.setRequestHeader(\"Content-Type\", \"application/json\");";
+        ptr += "xhr.onreadystatechange = function () {";
+        ptr += "if (xhr.readyState === 4) {";
+        ptr += "console.log(xhr.status);";
+        ptr += "console.log(xhr.responseText);";
+        ptr += "}};";
+        ptr += "let data = JSON.stringify(color.rgb)";
+        ptr += "xhr.send(data);";
+        ptr += "}";
+        ptr += "// Start listening to the color change event";
+        ptr += "colorPicker.on(\"color:change\", updateColor);";
+        ptr += "</script>";
+        ptr += "</body>";
+        ptr += "</html>";
 
-//   if(led2stat)
-//   {ptr +="<p>LED2 Status: ON</p><a class=\"button button-off\" href=\"/led2off\">OFF</a>\n";}
-//   else
-//   {ptr +="<p>LED2 Status: OFF</p><a class=\"button button-on\" href=\"/led2on\">ON</a>\n";}
-
-//   ptr +="</body>\n";
-//   ptr +="</html>\n";
-//   return ptr;
-// }
+}
