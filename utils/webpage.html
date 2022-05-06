@@ -66,7 +66,8 @@
                 console.log(xhr.responseText);
             }};
 
-            let data = JSON.stringify(color.rgb)
+            let data = JSON.stringify(color.rgb);
+            console.log(data);
             xhr.send(data);
 
         }

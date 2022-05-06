@@ -1,3 +1,31 @@
+#include <bitswap.h>
+#include <chipsets.h>
+#include <color.h>
+#include <colorpalettes.h>
+#include <colorutils.h>
+#include <controller.h>
+#include <cpp_compat.h>
+#include <dmx.h>
+#include <fastled_config.h>
+#include <fastled_delay.h>
+#include <fastled_progmem.h>
+#include <FastLED.h>
+#include <fastpin.h>
+#include <fastspi_bitbang.h>
+#include <fastspi_dma.h>
+#include <fastspi_nop.h>
+#include <fastspi_ref.h>
+#include <fastspi_types.h>
+#include <fastspi.h>
+#include <hsv2rgb.h>
+#include <led_sysdefs.h>
+#include <lib8tion.h>
+#include <noise.h>
+#include <pixelset.h>
+#include <pixeltypes.h>
+#include <platforms.h>
+#include <power_mgt.h>
+
 // Import Wifi and Webserver libraries
 #include <ESP8266WiFi.h>
 #include <ESP8266WebServer.h>
@@ -8,10 +36,7 @@
 #include <WiFiUdp.h> 
 
 // Import FastLed
-#include <fastLED.h>
-
-// Import WebPage variable
-#include "html_page.ino"
+//#include <fastLED.h>
 
 // Import credentials 
 #include "secrets.h"
@@ -38,17 +63,16 @@ int b = 255;
 // Initialize LED object TODO
 
 // Initalize grid led matrix with index position --> It simplify the development
-int matrix[10][11];
-matrix[0] = {115, 114,113,112,111,110,109,108,107,106,105};
-matrix[1] = {94, 95, 96, 97, 98, 99,100,101,102,103,104};
-matrix[2] = {93, 92, 91, 90, 89, 88, 87, 86, 85, 84, 83};
-matrix[3] = {72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82};
-matrix[4] = {71, 70, 69, 68, 67, 66, 65, 64, 63, 62, 61};
-matrix[5] = {50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60};
-matrix[6] = {49, 48, 47, 46, 45, 44, 43, 42, 41, 40, 39};
-matrix[7] = {28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38};
-matrix[8] = {27, 26, 25, 24, 23, 22, 21, 20, 19, 18, 17};
-matrix[9] = { 6,  7,  8,  9, 10, 11, 12, 13, 14, 15, 16};
+int matrix[10][11] = {{115, 114,113,112,111,110,109,108,107,106,105},
+                      {94, 95, 96, 97, 98, 99,100,101,102,103,104},
+                      {93, 92, 91, 90, 89, 88, 87, 86, 85, 84, 83},
+                      {72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82},
+                      {71, 70, 69, 68, 67, 66, 65, 64, 63, 62, 61},
+                      {50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60},
+                      {49, 48, 47, 46, 45, 44, 43, 42, 41, 40, 39},
+                      {28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38},
+                      {27, 26, 25, 24, 23, 22, 21, 20, 19, 18, 17},
+                      { 6,  7,  8,  9, 10, 11, 12, 13, 14, 15, 16}};
 
 // %%%%%%Function prorotypes%%%%%%
 // Server
@@ -74,16 +98,26 @@ void setup() {
     
     // Begin Serial connection
     Serial.begin(115200);
+
+    WiFi.begin(ssid, password);  //Connect to the WiFi network
+  
+    while (WiFi.status() != WL_CONNECTED) {  //Wait for connection
+      delay(500);
+      Serial.println("Waiting to connect...");
+    }
+  
+    Serial.print("IP address: ");
+    Serial.println(WiFi.localIP());  //Print the local IP
     
     // Initialize WebServer
-    WiFi.softAP(ssid, password);
-    WiFi.softAPConfig(local_ip, gateway, subnet);
+    // WiFi.softAP(ssid, password);
+    // WiFi.softAPConfig(local_ip, gateway, subnet);
     delay(100);
 
     //Start mDNS
-    if (MDNS.begin("smartclock")) {  
-      Serial.println(“MDNS started”);
-    }
+    //if (MDNS.begin("smartclock")) {  
+    //  Serial.println("MDNS started");
+    //}
 
     server.on("/updateColor", HTTP_POST, handleColor);
   
@@ -92,8 +126,8 @@ void setup() {
     server.on("/timer", handleTimerMode);
     server.on("/waves", handleWavesMode);
     server.onNotFound(handleNotFound);
+    
     server.begin();
-
     Serial.println("HTTP server started");
 
     // Initialize a NTPClient to get time
@@ -119,17 +153,17 @@ void loop() {
     timeClient.update(); 
     
     int currentHour = timeClient.getHours();
-    Serial.print("Hour: ");
-    Serial.println(currentHour);  
+    // Serial.print("Hour: ");
+    // Serial.println(currentHour);  
 
     int currentMinute = timeClient.getMinutes();
-    Serial.print("Minutes: ");
-    Serial.println(currentMinute);
+    // Serial.print("Minutes: ");
+    // Serial.println(currentMinute);
 
-    Serial.print("Colors: ");
-    Serial.println(r);
-    Serial.println(g);
-    Serial.println(b);
+    // Serial.print("Colors: ");
+    // Serial.println(r);
+    // Serial.println(g);
+    // Serial.println(b);
 
     delay(0);
 
@@ -164,97 +198,115 @@ void handleWavesMode() {
     server.send(200, "text/html", HTML(r, g, b, mode));
 }
 
-void handleNotFound(){
+void handleNotFound() {
   server.send(404, "text/plain", "Not found");
 }
 
 void handleColor() {
     // Handle invalid data
-    if(!server.hasArg("r") || !server.hasArg("g") || !server.hasArg("b") 
-      || server.arg("r") == NULL || server.arg("g") == NULL || server.arg("b") == NULL) { 
-      server.send(400, "text/plain", "400: Invalid Request");
-      return;
-    }
-    // Update color here
-    else {
-      r = server.arg("r").toInt();
-      g = server.arg("g").toInt();
-      b = server.arg("b").toInt();
-    }
+    
+    String data = server.arg("plain");
+    Serial.println(data);
+    r = getValue(data, ',', 0);
+    g = getValue(data, ',', 1);
+    b = getValue(data, ',', 2);
+    Serial.println(r);
+    Serial.println(g);
+    Serial.println(b);
 }
 
-String HTML(uint8_t r, uint8_t g, uint8_t b, String mode) {
+int getValue(String data, char separator, int index)
+{
+  int found = 0;
+  int strIndex[] = {0, -1};
+  int maxIndex = data.length()-1;
+
+  for(int i=0; i<=maxIndex && found<=index; i++){
+    if(data.charAt(i)==separator || i==maxIndex){
+        found++;
+        strIndex[0] = strIndex[1]+1;
+        strIndex[1] = (i == maxIndex) ? i+1 : i;
+    }
+  }
+
+  return found>index ? data.substring(strIndex[0], strIndex[1]).toInt() : 255;
+}
+
+String HTML(int r, int g, int b, String mode) {
     
-    String ptr += "<!DOCTYPE html>";
-        ptr += "<!DOCTYPE html>";
-        ptr += "<html lang=\"en\">";
-        ptr += "<head>";
-        ptr += "<meta charset=\"UTF-8\">";
-        ptr += "<meta http-equiv=\"X-UA-Compatible\" content=\"IE=edge\">";
-        ptr += "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">";
-        ptr += "<!-- Bootstrap CSS -->";
-        ptr += "<link href=\"https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css\" rel=\"stylesheet\" integrity=\"sha384-1BmE4kWBq78iYhFldvKuhfTAU6auU8tT94WrHftjDbrCEXSU1oBoqyl2QvZ6jIW3\" crossorigin=\"anonymous\">";
-        ptr += "<!-- JavaScript Bundle with Popper -->";
-        ptr += "<script src=\"https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js\" integrity=\"sha384-ka7Sk0Gln4gmtz2MlQnikT1wXgYsOg+OMhuP+IlRH9sENBO0LRn5q+8nbTov4+1p\" crossorigin=\"anonymous\"></script>";
-        ptr += "<!-- Color picker -->";
-        ptr += "<script src=\"https://cdn.jsdelivr.net/npm/@jaames/iro\"></script>";
-        ptr += "<title>SmartClock</title>";
-        ptr += "</head>";
-        ptr += "<body class=\"bg-secondary text-white\">";
-        ptr += "<div class=\"container\">";
-        ptr += "<div class=\"row justify-content-center\">";
-        ptr += "<div class=\"col-sm\"></div>";
-        ptr += "<div class=\"col-sm\">";
-        ptr += "<h1 class=\"text-center\">Smart Clock</h1>";
-        ptr += "<br>";
-        ptr += "<div class=\"wheel mx-auto\" id=\"colorWheelDemo\"></div>";
-        ptr += "</div>";
-        ptr += "<div class=\"col-sm\"></div>";
-        ptr += "</div>";
-        ptr += "<br>";
-        ptr += "<div class=\"row justify-content-center\">";
-        ptr += "<div class=\"col-sm\"></div>";
-        ptr += "<div class=\"col-sm text-center\">";
-        ptr += "<div class=\"dropdown\">";
-        ptr += "<button class=\"btn btn-primary dropdown-toggle\" type=\"button\" id=\"modeSelection\" data-bs-toggle=\"dropdown\" aria-expanded=\"false\">";
-        ptr += "Select the mode";
-        ptr += "</button>";
-        ptr += "<ul class=\"dropdown-menu\" aria-labelledby=\"modeSelection\">";
-        ptr += "<li><a class=\"dropdown-item\" href=\"/clock\">Clock</a></li>";
-        ptr += "<li><a class=\"dropdown-item\" href=\"/timer\">Timer</a></li>";
-        ptr += "<li><a class=\"dropdown-item\" href=\"/waves\">Waves</a></li>";
-        ptr += "</ul>";
-        ptr += "</div>";
-        ptr += "</div>";
-        ptr += "<div class=\"col-sm\"></div>";
-        ptr += "</div>";
-        ptr += "</div>";
-        ptr += "<script>";
-        ptr += "var colorPicker = new iro.ColorPicker(\"#colorWheelDemo\", {";
-        ptr += "// Set the size of the color picker";
-        ptr += "width: 320,";
-        ptr += "// Set the initial color to pure red";
-        ptr += "color: {r: " + r + ", g: " + g + ", b:" + b + "},";
-        ptr += "borderWidth: 1,";
-        ptr += "borderColor: \"#fff\",";
-        ptr += "});";
-        ptr += "function updateColor(color) {";
-        ptr += "let xhr = new XMLHttpRequest();";
-        ptr += "xhr.open(\"POST\", \"/updateColor\");";
-        ptr += "xhr.setRequestHeader(\"Accept\", \"application/json\");";
-        ptr += "xhr.setRequestHeader(\"Content-Type\", \"application/json\");";
-        ptr += "xhr.onreadystatechange = function () {";
-        ptr += "if (xhr.readyState === 4) {";
-        ptr += "console.log(xhr.status);";
-        ptr += "console.log(xhr.responseText);";
-        ptr += "}};";
-        ptr += "let data = JSON.stringify(color.rgb)";
-        ptr += "xhr.send(data);";
-        ptr += "}";
-        ptr += "// Start listening to the color change event";
-        ptr += "colorPicker.on(\"color:change\", updateColor);";
-        ptr += "</script>";
-        ptr += "</body>";
-        ptr += "</html>";
+    String ptr = "<!DOCTYPE html>\n";
+        ptr += "<!DOCTYPE html>\n";
+        ptr += "<html lang=\"en\">\n";
+        ptr += "<head>\n";
+        ptr += "<meta charset=\"UTF-8\">\n";
+        ptr += "<meta http-equiv=\"X-UA-Compatible\" content=\"IE=edge\">\n";
+        ptr += "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n";
+        ptr += "<!-- Bootstrap CSS -->\n";
+        ptr += "<link href=\"https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css\" rel=\"stylesheet\" integrity=\"sha384-1BmE4kWBq78iYhFldvKuhfTAU6auU8tT94WrHftjDbrCEXSU1oBoqyl2QvZ6jIW3\" crossorigin=\"anonymous\">\n";
+        ptr += "<!-- JavaScript Bundle with Popper -->\n";
+        ptr += "<script src=\"https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js\" integrity=\"sha384-ka7Sk0Gln4gmtz2MlQnikT1wXgYsOg+OMhuP+IlRH9sENBO0LRn5q+8nbTov4+1p\" crossorigin=\"anonymous\"></script>\n";
+        ptr += "<!-- Color picker -->\n";
+        ptr += "<script src=\"https://cdn.jsdelivr.net/npm/@jaames/iro\"></script>\n";
+        ptr += "<title>SmartClock</title>\n";
+        ptr += "</head>\n";
+        ptr += "<body class=\"bg-secondary text-white\">\n";
+        ptr += "<div class=\"container\">\n";
+        ptr += "<div class=\"row justify-content-center\">\n";
+        ptr += "<div class=\"col-sm\"></div>\n";
+        ptr += "<div class=\"col-sm\">\n";
+        ptr += "<h1 class=\"text-center\">Smart Clock</h1>\n";
+        ptr += "<br>\n";
+        ptr += "<div class=\"wheel mx-auto\" id=\"colorWheelDemo\"></div>\n";
+        ptr += "</div>\n";
+        ptr += "<div class=\"col-sm\"></div>\n";
+        ptr += "</div>\n";
+        ptr += "<br>\n";
+        ptr += "<div class=\"row justify-content-center\">\n";
+        ptr += "<div class=\"col-sm\"></div>\n";
+        ptr += "<div class=\"col-sm text-center\">\n";
+        ptr += "<div class=\"dropdown\">\n";
+        ptr += "<button class=\"btn btn-primary dropdown-toggle\" type=\"button\" id=\"modeSelection\" data-bs-toggle=\"dropdown\" aria-expanded=\"false\">\n";
+        ptr += "Select the mode\n";
+        ptr += "</button>\n";
+        ptr += "<ul class=\"dropdown-menu\" aria-labelledby=\"modeSelection\">\n";
+        ptr += "<li><a class=\"dropdown-item\" href=\"/clock\">Clock</a></li>\n";
+        ptr += "<li><a class=\"dropdown-item\" href=\"/timer\">Timer</a></li>\n";
+        ptr += "<li><a class=\"dropdown-item\" href=\"/waves\">Waves</a></li>\n";
+        ptr += "</ul>\n";
+        ptr += "</div>\n";
+        ptr += "</div>\n";
+        ptr += "<div class=\"col-sm\"></div>\n";
+        ptr += "</div>\n";
+        ptr += "</div>\n";
+        ptr += "<script>\n";
+        ptr += "var colorPicker = new iro.ColorPicker(\"#colorWheelDemo\", {\n";
+        ptr += "// Set the size of the color picker\n";
+        ptr += "width: 320,\n";
+        ptr += "// Set the initial color to pure red\n";
+        ptr += "color: {r: " + String(r) + ", g: " + String(g) + ", b:" + String(b) + "},\n";
+        ptr += "borderWidth: 1,\n";
+        ptr += "borderColor: \"#fff\",\n";
+        ptr += "});\n";
+        ptr += "function updateColor(color) {\n";
+        ptr += "let xhr = new XMLHttpRequest();\n";
+        ptr += "xhr.open(\"POST\", \"/updateColor\");\n";
+        ptr += "xhr.setRequestHeader(\"Accept\", \"application/json\");\n";
+        ptr += "xhr.setRequestHeader(\"Content-Type\", \"application/x-www-form-urlencoded\");\n";
+        ptr += "xhr.onreadystatechange = function () {\n";
+        ptr += "if (xhr.readyState === 4) {\n";
+        ptr += "console.log(xhr.status);\n";
+        ptr += "console.log(xhr.responseText);\n";
+        ptr += "}};\n";
+        ptr += "let data = JSON.stringify(color.rgb);\n";
+        ptr += "console.log(data);\n";
+        ptr += "xhr.send(data);\n";
+        ptr += "}\n";
+        ptr += "// Start listening to the color change event\n";
+        ptr += "colorPicker.on(\"color:change\", updateColor);\n";
+        ptr += "</script>\n";
+        ptr += "</body>\n";
+        ptr += "</html>\n";
+    
+    return ptr;
 
 }
